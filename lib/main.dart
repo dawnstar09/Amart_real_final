@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/allergy_profile_screen.dart';
 import 'screens/notification_screen.dart';
+import 'screens/cart_screen.dart';
+import 'screens/delivery_status_screen.dart';
 import 'services/notification_service.dart';
+import 'services/cart_service.dart';
+import 'services/order_service.dart';
 import 'models/notification.dart';
 
 /// 앱의 시작점
@@ -68,7 +72,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   /// 현재 선택된 탭 인덱스
-  /// 0: 제품 목록, 1: 프로필
+  /// 0: 제품 목록, 1: 장바구니, 2: 프로필
   int _selectedIndex = 0;
   
   /// 사용자가 선택한 알레르기 목록
@@ -77,6 +81,12 @@ class _HomePageState extends State<HomePage> {
 
   /// 알림 서비스 인스턴스
   final NotificationService _notificationService = NotificationService();
+  
+  /// 장바구니 서비스 인스턴스
+  final CartService _cartService = CartService();
+  
+  /// 주문 서비스 인스턴스
+  final OrderService _orderService = OrderService();
 
   /// 알레르기 설정이 변경될 때 호출되는 함수
   void _onAllergensChanged(List<String> allergens) {
@@ -227,24 +237,95 @@ class _HomePageState extends State<HomePage> {
           ? ProductListScreen(
               userAllergens: _userAllergens,
               notificationService: _notificationService,
+              cartService: _cartService,
             )
-          : _buildProfileTab(),
+          : _selectedIndex == 1
+              ? CartScreen(
+                  cartService: _cartService,
+                  notificationService: _notificationService,
+                  orderService: _orderService,
+                )
+              : _selectedIndex == 2
+                  ? DeliveryStatusScreen(
+                      orderService: _orderService,
+                    )
+                  : _buildProfileTab(),
       
       /// 하단 네비게이션 바
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.shopping_basket),
-            label: '제품',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: '내 정보',
-          ),
-        ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.orange[700],
-        onTap: _onItemTapped,
+      bottomNavigationBar: ListenableBuilder(
+        listenable: Listenable.merge([_cartService, _orderService]),
+        builder: (context, child) {
+          return BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            items: <BottomNavigationBarItem>[
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.shopping_basket),
+                label: '제품',
+              ),
+              BottomNavigationBarItem(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.shopping_cart),
+                    if (_cartService.itemCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            '${_cartService.itemCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                label: '장바구니',
+              ),
+              BottomNavigationBarItem(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.local_shipping),
+                    if (_orderService.hasOrders)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.orange[700],
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                label: '배달 상황',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                label: '내 정보',
+              ),
+            ],
+            currentIndex: _selectedIndex,
+            selectedItemColor: Colors.orange[700],
+            onTap: _onItemTapped,
+          );
+        },
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../models/allergen.dart';
 import '../services/notification_service.dart';
+import '../services/cart_service.dart';
 import 'product_detail_screen.dart';
 
 /// 제품 목록을 표시하는 메인 화면
@@ -11,11 +12,15 @@ class ProductListScreen extends StatefulWidget {
   
   /// 알림 서비스
   final NotificationService notificationService;
+  
+  /// 장바구니 서비스
+  final CartService cartService;
 
   const ProductListScreen({
     super.key,
     required this.userAllergens,
     required this.notificationService,
+    required this.cartService,
   });
 
   @override
@@ -259,6 +264,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                 product: product,
                                 userAllergens: widget.userAllergens,
                                 notificationService: widget.notificationService,
+                                cartService: widget.cartService,
                               ),
                             ),
                           );

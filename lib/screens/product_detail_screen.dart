@@ -3,18 +3,21 @@ import '../models/product.dart';
 import '../models/allergen.dart';
 import '../models/notification.dart';
 import '../services/notification_service.dart';
+import '../services/cart_service.dart';
 
 /// 개별 제품의 상세 정보를 표시하는 화면
 class ProductDetailScreen extends StatelessWidget {
   final Product product;
   final List<String> userAllergens;
   final NotificationService notificationService;
+  final CartService cartService;
 
   const ProductDetailScreen({
     super.key,
     required this.product,
     required this.userAllergens,
     required this.notificationService,
+    required this.cartService,
   });
 
   /// 제품이 포함하고 있는 알레르기 정보 가져오기
@@ -293,6 +296,9 @@ class ProductDetailScreen extends StatelessWidget {
         child: ElevatedButton(
           onPressed: isSafe || userAllergens.isEmpty
               ? () {
+                  // 장바구니에 상품 추가
+                  cartService.addProduct(product);
+                  
                   // 장바구니 추가 알림
                   notificationService.addNotification(
                     title: '장바구니 추가',
@@ -303,14 +309,22 @@ class ProductDetailScreen extends StatelessWidget {
                   // 스낵바 메시지
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('${product.name}을(를) 장바구니에 추가했습니다!'),
+                      content: Row(
+                        children: [
+                          const Icon(Icons.shopping_cart, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text('${product.name}을(를) 장바구니에 추가했습니다!'),
+                          ),
+                        ],
+                      ),
                       backgroundColor: Colors.green,
                       duration: const Duration(seconds: 2),
                       action: SnackBarAction(
-                        label: '알림 보기',
+                        label: '장바구니',
                         textColor: Colors.white,
                         onPressed: () {
-                          Navigator.pushNamed(context, '/notifications');
+                          Navigator.pop(context);
                         },
                       ),
                     ),
