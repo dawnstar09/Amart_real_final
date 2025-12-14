@@ -108,16 +108,19 @@ class CartScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('장바구니'),
-        actions: [
-          if (cartService.items.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () {
-                showDialog(
-                  context: context,
+    return ListenableBuilder(
+      listenable: cartService,
+      builder: (context, child) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('장바구니'),
+            actions: [
+              if (cartService.items.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('장바구니 비우기'),
                     content: const Text('장바구니를 비우시겠습니까?'),
@@ -370,6 +373,8 @@ class CartScreen extends StatelessWidget {
                 ),
               ],
             ),
+        );
+      },
     );
   }
 }
