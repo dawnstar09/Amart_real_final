@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../models/allergen.dart';
+import '../services/notification_service.dart';
 import 'product_detail_screen.dart';
 
 /// 제품 목록을 표시하는 메인 화면
 class ProductListScreen extends StatefulWidget {
   /// 사용자가 선택한 알레르기 목록
   final List<String> userAllergens;
+  
+  /// 알림 서비스
+  final NotificationService notificationService;
 
   const ProductListScreen({
     super.key,
     required this.userAllergens,
+    required this.notificationService,
   });
 
   @override
@@ -253,6 +258,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                               builder: (context) => ProductDetailScreen(
                                 product: product,
                                 userAllergens: widget.userAllergens,
+                                notificationService: widget.notificationService,
                               ),
                             ),
                           );

@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../models/allergen.dart';
+import '../models/notification.dart';
+import '../services/notification_service.dart';
 
 /// 개별 제품의 상세 정보를 표시하는 화면
 class ProductDetailScreen extends StatelessWidget {
   final Product product;
   final List<String> userAllergens;
+  final NotificationService notificationService;
 
   const ProductDetailScreen({
     super.key,
     required this.product,
     required this.userAllergens,
+    required this.notificationService,
   });
 
   /// 제품이 포함하고 있는 알레르기 정보 가져오기
@@ -289,12 +293,26 @@ class ProductDetailScreen extends StatelessWidget {
         child: ElevatedButton(
           onPressed: isSafe || userAllergens.isEmpty
               ? () {
-                  // 장바구니 추가 기능 (데모용 메시지)
+                  // 장바구니 추가 알림
+                  notificationService.addNotification(
+                    title: '장바구니 추가',
+                    message: '${product.name}을(를) 장바구니에 추가했습니다!',
+                    type: NotificationType.cart,
+                  );
+                  
+                  // 스낵바 메시지
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('${product.name}을(를) 장바구니에 추가했습니다!'),
                       backgroundColor: Colors.green,
                       duration: const Duration(seconds: 2),
+                      action: SnackBarAction(
+                        label: '알림 보기',
+                        textColor: Colors.white,
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/notifications');
+                        },
+                      ),
                     ),
                   );
                 }

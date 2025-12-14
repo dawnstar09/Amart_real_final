@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/allergy_profile_screen.dart';
+import 'screens/notification_screen.dart';
+import 'services/notification_service.dart';
+import 'models/notification.dart';
 
 /// 앱의 시작점
 /// main() 함수는 Flutter 앱이 실행될 때 가장 먼저 호출됩니다
@@ -72,11 +75,30 @@ class _HomePageState extends State<HomePage> {
   /// 이 리스트는 앱 전체에서 사용됩니다
   List<String> _userAllergens = [];
 
+  /// 알림 서비스 인스턴스
+  final NotificationService _notificationService = NotificationService();
+
   /// 알레르기 설정이 변경될 때 호출되는 함수
   void _onAllergensChanged(List<String> allergens) {
+    final oldCount = _userAllergens.length;
     setState(() {
       _userAllergens = allergens;
     });
+    
+    // 알러지 설정 변경 알림 추가
+    if (allergens.length > oldCount) {
+      _notificationService.addNotification(
+        title: '알레르기 항목 추가',
+        message: '새로운 알레르기 항목이 추가되었습니다. 제품 검색 시 자동으로 필터링됩니다.',
+        type: NotificationType.allergy,
+      );
+    } else if (allergens.length < oldCount) {
+      _notificationService.addNotification(
+        title: '알레르기 항목 제거',
+        message: '알레르기 항목이 제거되었습니다.',
+        type: NotificationType.allergy,
+      );
+    }
   }
 
   /// 하단 네비게이션 탭이 선택될 때 호출되는 함수
@@ -102,6 +124,55 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
+          /// 알림 버튼
+          ListenableBuilder(
+            listenable: _notificationService,
+            builder: (context, child) {
+              return IconButton(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.notifications, size: 28),
+                    if (_notificationService.unreadCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            '${_notificationService.unreadCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                tooltip: '알림',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NotificationScreen(
+                        notificationService: _notificationService,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           /// 알레르기 프로필 설정 버튼
           IconButton(
             icon: Stack(
@@ -153,7 +224,10 @@ class _HomePageState extends State<HomePage> {
       
       /// 메인 화면 내용
       body: _selectedIndex == 0
-          ? ProductListScreen(userAllergens: _userAllergens)
+          ? ProductListScreen(
+              userAllergens: _userAllergens,
+              notificationService: _notificationService,
+            )
           : _buildProfileTab(),
       
       /// 하단 네비게이션 바
