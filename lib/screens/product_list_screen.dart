@@ -3,6 +3,8 @@ import '../models/product.dart';
 import '../models/allergen.dart';
 import '../services/notification_service.dart';
 import '../services/cart_service.dart';
+import '../services/review_service.dart';
+import '../services/auth_service.dart';
 import 'product_detail_screen.dart';
 
 /// 제품 목록을 표시하는 메인 화면
@@ -15,12 +17,20 @@ class ProductListScreen extends StatefulWidget {
   
   /// 장바구니 서비스
   final CartService cartService;
+  
+  /// 리뷰 서비스
+  final ReviewService reviewService;
+  
+  /// 인증 서비스
+  final AuthService authService;
 
   const ProductListScreen({
     super.key,
     required this.userAllergens,
     required this.notificationService,
     required this.cartService,
+    required this.reviewService,
+    required this.authService,
   });
 
   @override
@@ -265,6 +275,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                 userAllergens: widget.userAllergens,
                                 notificationService: widget.notificationService,
                                 cartService: widget.cartService,
+                                reviewService: widget.reviewService,
+                                authService: widget.authService,
                               ),
                             ),
                           );

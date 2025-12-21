@@ -33,6 +33,9 @@ class Product {
     return true;
   }
 
+  /// 알레르기 성분 ID 목록을 반환 (allergens getter 추가)
+  List<String> get allergens => allergenIds;
+
   /// 샘플 제품 데이터
   /// 실제 앱에서는 데이터베이스나 API에서 가져오지만, 
   /// 학습 목적으로 하드코딩된 샘플 데이터를 사용합니다
@@ -128,4 +131,30 @@ class Product {
       imageUrl: '🥕',
     ),
   ];
+
+  /// Map으로 변환 (Firestore 저장용)
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'category': category,
+      'description': description,
+      'price': price,
+      'allergenIds': allergenIds,
+      'imageUrl': imageUrl,
+    };
+  }
+
+  /// Map에서 Product 생성 (Firestore 로드용)
+  factory Product.fromMap(Map<String, dynamic> map) {
+    return Product(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      category: map['category'] ?? '',
+      description: map['description'] ?? '',
+      price: (map['price'] ?? 0).toDouble(),
+      allergenIds: List<String>.from(map['allergenIds'] ?? []),
+      imageUrl: map['imageUrl'] ?? '📦',
+    );
+  }
 }

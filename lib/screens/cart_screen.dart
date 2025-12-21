@@ -9,16 +9,106 @@ class CartScreen extends StatelessWidget {
   final CartService cartService;
   final NotificationService notificationService;
   final OrderService orderService;
+  final List<String> userAllergens;
 
   const CartScreen({
     super.key,
     required this.cartService,
     required this.notificationService,
     required this.orderService,
+    required this.userAllergens,
   });
 
   /// 결제 처리
-  void _processPayment(BuildContext context) {
+  void _processPayment(BuildContext context) async {
+    // 알러지 상품 체크
+    final allergenProducts = cartService.items.where((item) {
+      return !item.product.isSafeFor(userAllergens) && userAllergens.isNotEmpty;
+    }).toList();
+    
+    // 알러지 상품이 있으면 경고 다이얼로그 표시
+    if (allergenProducts.isNotEmpty) {
+      final shouldContinue = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 28),
+              const SizedBox(width: 8),
+              const Text('알레르기 경고'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '장바구니에 알레르기 유발 성분이 포함된 상품이 있습니다:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ...allergenProducts.map((item) {
+                final allergens = item.product.allergens
+                    .where((a) => userAllergens.contains(a))
+                    .toList();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.product.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              '포함: ${allergens.join(", ")}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              const SizedBox(height: 16),
+              const Text(
+                '그래도 결제를 진행하시겠습니까?',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red[700],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('계속 진행'),
+            ),
+          ],
+        ),
+      );
+      
+      if (shouldContinue != true) {
+        return;
+      }
+    }
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -171,6 +261,9 @@ class CartScreen extends StatelessWidget {
                     itemCount: cartService.items.length,
                     itemBuilder: (context, index) {
                       final item = cartService.items[index];
+                      final hasAllergen = !item.product.isSafeFor(userAllergens) && 
+                                        userAllergens.isNotEmpty;
+                      
                       return Card(
                         margin: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -181,19 +274,45 @@ class CartScreen extends StatelessWidget {
                           child: Row(
                             children: [
                               // 제품 이미지
-                              Container(
-                                width: 60,
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  color: Colors.orange[50],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    item.product.imageUrl,
-                                    style: const TextStyle(fontSize: 32),
+                              Stack(
+                                children: [
+                                  Container(
+                                    width: 60,
+                                    height: 60,
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange[50],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        item.product.imageUrl,
+                                        style: const TextStyle(fontSize: 32),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  // 알러지 경고 아이콘
+                                  if (hasAllergen)
+                                    Positioned(
+                                      right: -2,
+                                      top: -2,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red[700],
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.warning,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                               const SizedBox(width: 12),
                               
@@ -202,12 +321,53 @@ class CartScreen extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      item.product.name,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            item.product.name,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        if (hasAllergen)
+                                          Container(
+                                            margin: const EdgeInsets.only(left: 4),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red[50],
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(
+                                                color: Colors.red[300]!,
+                                                width: 1,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  size: 12,
+                                                  color: Colors.red[700],
+                                                ),
+                                                const SizedBox(width: 2),
+                                                Text(
+                                                  '알러지',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: Colors.red[700],
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                     const SizedBox(height: 4),
                                     Text(

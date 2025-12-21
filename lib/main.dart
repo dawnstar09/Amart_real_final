@@ -1,17 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'screens/product_list_screen.dart';
 import 'screens/allergy_profile_screen.dart';
 import 'screens/notification_screen.dart';
 import 'screens/cart_screen.dart';
 import 'screens/delivery_status_screen.dart';
+import 'screens/login_screen.dart';
 import 'services/notification_service.dart';
 import 'services/cart_service.dart';
 import 'services/order_service.dart';
+import 'services/auth_service.dart';
+import 'services/user_service.dart';
+import 'services/review_service.dart';
 import 'models/notification.dart';
 
 /// 앱의 시작점
 /// main() 함수는 Flutter 앱이 실행될 때 가장 먼저 호출됩니다
-void main() {
+void main() async {
+  // Flutter 바인딩 초기화 (Firebase 사용을 위해 필요)
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Firebase 초기화
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   runApp(const AllergyGroceryApp());
 }
 
@@ -56,8 +70,40 @@ class AllergyGroceryApp extends StatelessWidget {
         useMaterial3: true,
       ),
       
-      /// 앱의 첫 화면 설정
-      home: const HomePage(),
+      /// 앱의 첫 화면 - 인증 상태에 따라 로그인/홈 화면 표시
+      home: const AuthWrapper(),
+    );
+  }
+}
+
+/// 인증 상태를 확인하여 적절한 화면을 표시하는 위젯
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final authService = AuthService();
+    
+    // Firebase Authentication 상태를 실시간으로 감지
+    return StreamBuilder(
+      stream: authService.authStateChanges,
+      builder: (context, snapshot) {
+        // 로딩 중
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
+        // 로그인되어 있으면 홈 화면, 아니면 로그인 화면
+        if (snapshot.hasData) {
+          return const HomePage();
+        } else {
+          return const LoginScreen();
+        }
+      },
     );
   }
 }
@@ -78,6 +124,9 @@ class _HomePageState extends State<HomePage> {
   /// 사용자가 선택한 알레르기 목록
   /// 이 리스트는 앱 전체에서 사용됩니다
   List<String> _userAllergens = [];
+  
+  /// 데이터 로딩 상태
+  bool _isLoading = true;
 
   /// 알림 서비스 인스턴스
   final NotificationService _notificationService = NotificationService();
@@ -87,27 +136,116 @@ class _HomePageState extends State<HomePage> {
   
   /// 주문 서비스 인스턴스
   final OrderService _orderService = OrderService();
+  
+  /// 리뷰 서비스 인스턴스
+  final ReviewService _reviewService = ReviewService();
+  
+  /// 인증 서비스 인스턴스
+  final AuthService _authService = AuthService();
+  
+  /// 사용자 서비스 인스턴스
+  final UserService _userService = UserService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  /// Firestore에서 사용자 데이터를 불러옴
+  Future<void> _loadUserData() async {
+    final userId = _authService.userId;
+    if (userId != null) {
+      try {
+        // 장바구니, 주문, 알림 서비스에 userId 설정
+        await _cartService.setUserId(userId);
+        await _orderService.setUserId(userId);
+        await _notificationService.setUserId(userId);
+        
+        // 알러지 정보 로드
+        final allergens = await _userService.getUserAllergens(userId: userId);
+        setState(() {
+          _userAllergens = allergens;
+          _isLoading = false;
+        });
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('데이터를 불러오지 못했습니다: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
 
   /// 알레르기 설정이 변경될 때 호출되는 함수
-  void _onAllergensChanged(List<String> allergens) {
+  Future<void> _onAllergensChanged(List<String> allergens) async {
     final oldCount = _userAllergens.length;
-    setState(() {
-      _userAllergens = allergens;
-    });
     
-    // 알러지 설정 변경 알림 추가
-    if (allergens.length > oldCount) {
-      _notificationService.addNotification(
-        title: '알레르기 항목 추가',
-        message: '새로운 알레르기 항목이 추가되었습니다. 제품 검색 시 자동으로 필터링됩니다.',
-        type: NotificationType.allergy,
-      );
-    } else if (allergens.length < oldCount) {
-      _notificationService.addNotification(
-        title: '알레르기 항목 제거',
-        message: '알레르기 항목이 제거되었습니다.',
-        type: NotificationType.allergy,
-      );
+    // Firebase에 저장
+    final userId = _authService.userId;
+    if (userId != null) {
+      try {
+        await _userService.saveUserAllergens(
+          userId: userId,
+          allergenIds: allergens,
+        );
+        
+        setState(() {
+          _userAllergens = allergens;
+        });
+        
+        // 알러지 설정 변경 알림 추가
+        if (allergens.length > oldCount) {
+          _notificationService.addNotification(
+            title: '알레르기 항목 추가',
+            message: '새로운 알레르기 항목이 추가되었습니다. 제품 검색 시 자동으로 필터링됩니다.',
+            type: NotificationType.allergy,
+          );
+        } else if (allergens.length < oldCount) {
+          _notificationService.addNotification(
+            title: '알레르기 항목 제거',
+            message: '알레르기 항목이 제거되었습니다.',
+            type: NotificationType.allergy,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('알러지 정보 저장에 실패했습니다: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// 로그아웃 처리
+  Future<void> _handleLogout() async {
+    try {
+      // 장바구니와 주문 데이터 초기화
+      await _cartService.setUserId(null);
+      await _orderService.setUserId(null);
+      
+      await _authService.signOut();
+      // 로그아웃 시 AuthWrapper에서 자동으로 로그인 화면으로 이동
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('로그아웃에 실패했습니다: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -120,6 +258,15 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // 데이터 로딩 중일 때 로딩 화면 표시
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
     return Scaffold(
       /// AppBar: 화면 상단 타이틀 바
       appBar: AppBar(
@@ -238,12 +385,15 @@ class _HomePageState extends State<HomePage> {
               userAllergens: _userAllergens,
               notificationService: _notificationService,
               cartService: _cartService,
+              reviewService: _reviewService,
+              authService: _authService,
             )
           : _selectedIndex == 1
               ? CartScreen(
                   cartService: _cartService,
                   notificationService: _notificationService,
                   orderService: _orderService,
+                  userAllergens: _userAllergens,
                 )
               : _selectedIndex == 2
                   ? DeliveryStatusScreen(
@@ -354,10 +504,10 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 24),
             
-            /// 사용자 이름
-            const Text(
-              '이민주님',
-              style: TextStyle(
+            /// 사용자 이메일
+            Text(
+              _authService.userEmail ?? '사용자',
+              style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
@@ -393,6 +543,26 @@ class _HomePageState extends State<HomePage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange[700],
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            /// 로그아웃 버튼
+            OutlinedButton.icon(
+              onPressed: _handleLogout,
+              icon: const Icon(Icons.logout),
+              label: const Text('로그아웃'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 16,
